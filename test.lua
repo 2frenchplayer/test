@@ -13,12 +13,15 @@ local job = workspace:WaitForChild("Map")
 local normalBox = job:WaitForChild("NormalBox")
 local shelves = job:WaitForChild("Shelves")
 
-print("ShelfAuto Script client chargé. Appuie sur L pour ouvrir l'interface.")
+print("[ShelfAuto] Script client chargé. Appuie sur L pour ouvrir l'interface.")
 
 local enabled = false
 local busy = false
 local currentHumanoid
 local currentRoot
+local originalWalkSpeed
+local AUTO_WALK_SPEED = 30
+local PATH_RETRIES = 3
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "ShelfAutoUI"
@@ -101,6 +104,10 @@ local function setEnabled(value)
 	toggle.Text = value and "Arrêter" or "Activer"
 	toggle.BackgroundColor3 = value and Color3.fromRGB(169, 68, 68) or Color3.fromRGB(49, 126, 81)
 	if not value then
+		if currentHumanoid and currentHumanoid.Parent and originalWalkSpeed then
+			currentHumanoid.WalkSpeed = originalWalkSpeed
+			originalWalkSpeed = nil
+		end
 		setStatus("Arrêté.")
 	end
 end
@@ -124,30 +131,63 @@ local function moveTo(position)
 	local _, humanoid, root = getCharacterParts()
 	if humanoid.Health <= 0 or not enabled then return false end
 
-	local path = PathfindingService:CreatePath({
-		AgentRadius = 2,
-		AgentHeight = 5,
-		AgentCanJump = true,
-	})
-	local success = pcall(function()
-		path:ComputeAsync(root.Position, position)
-	end)
+	if not originalWalkSpeed then
+		originalWalkSpeed = humanoid.WalkSpeed
+	end
+	humanoid.WalkSpeed = AUTO_WALK_SPEED
 
-	if success and path.Status == Enum.PathStatus.Success then
-		for _, waypoint in ipairs(path:GetWaypoints()) do
-			if not enabled or humanoid.Health <= 0 then return false end
-			if waypoint.Action == Enum.PathWaypointAction.Jump then
-				humanoid.Jump = true
+	for attempt = 1, PATH_RETRIES do
+		local path = PathfindingService:CreatePath({
+			AgentRadius = 2,
+			AgentHeight = 5,
+			AgentCanJump = true,
+			WaypointSpacing = 4,
+		})
+
+		local computed = pcall(function()
+			path:ComputeAsync(root.Position, position)
+		end)
+
+		if computed and path.Status == Enum.PathStatus.Success then
+			local blocked = false
+			local waypointIndex = 1
+			local blockedConnection = path.Blocked:Connect(function(blockedIndex)
+				if blockedIndex >= waypointIndex then
+					blocked = true
+				end
+			end)
+
+			local completed = true
+			for index, waypoint in ipairs(path:GetWaypoints()) do
+				waypointIndex = index
+				if not enabled or humanoid.Health <= 0 then
+					completed = false
+					break
+				end
+				if waypoint.Action == Enum.PathWaypointAction.Jump then
+					humanoid.Jump = true
+				end
+				humanoid:MoveTo(waypoint.Position)
+				local reached = humanoid.MoveToFinished:Wait()
+				if not reached or blocked then
+					completed = false
+					break
+				end
 			end
-			humanoid:MoveTo(waypoint.Position)
-			local reached = humanoid.MoveToFinished:Wait()
-			if not reached then return false end
+			blockedConnection:Disconnect()
+
+			if completed then
+				return true
+			end
+			warn("[ShelfAuto] Chemin bloqué par un mur, recalcul " .. attempt .. "/" .. PATH_RETRIES .. ".")
+		else
+			warn("[ShelfAuto] Aucun chemin valide, recalcul " .. attempt .. "/" .. PATH_RETRIES .. ".")
 		end
-		return true
+		task.wait(0.15)
 	end
 
-	humanoid:MoveTo(position)
-	return humanoid.MoveToFinished:Wait()
+	warn("[ShelfAuto] Destination inaccessible après plusieurs essais.")
+	return false
 end
 
 local function usePrompt(prompt)

@@ -13,7 +13,7 @@ local job = workspace:WaitForChild("Map")
 local normalBox = job:WaitForChild("NormalBox")
 local shelves = job:WaitForChild("Shelves")
 
-print("[ShelfAuto] Script client chargé. Appuie sur M pour ouvrir l'interface.")
+print("[ShelfAuto] Script client chargé. Appuie sur L pour ouvrir l'interface.")
 
 local enabled = false
 local busy = false
@@ -26,8 +26,8 @@ gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local panel = Instance.new("Frame")
-panel.Size = UDim2.fromOffset(290, 150)
-panel.Position = UDim2.new(0.5, -145, 0.5, -75)
+panel.Size = UDim2.fromOffset(290, 204)
+panel.Position = UDim2.new(0.5, -145, 0.5, -102)
 panel.BackgroundColor3 = Color3.fromRGB(26, 29, 38)
 panel.BorderSizePixel = 0
 panel.Visible = false
@@ -75,6 +75,21 @@ local buttonCorner = Instance.new("UICorner")
 buttonCorner.CornerRadius = UDim.new(0, 7)
 buttonCorner.Parent = toggle
 
+local killButton = Instance.new("TextButton")
+killButton.Size = UDim2.new(1, -24, 0, 42)
+killButton.Position = UDim2.fromOffset(12, 150)
+killButton.BackgroundColor3 = Color3.fromRGB(105, 42, 42)
+killButton.BorderSizePixel = 0
+killButton.Font = Enum.Font.GothamBold
+killButton.TextSize = 15
+killButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+killButton.Text = "Kill le script"
+killButton.Parent = panel
+
+local killButtonCorner = Instance.new("UICorner")
+killButtonCorner.CornerRadius = UDim.new(0, 7)
+killButtonCorner.Parent = killButton
+
 local function setStatus(text)
 	status.Text = text
 	print("[ShelfAuto] " .. text)
@@ -88,6 +103,14 @@ local function setEnabled(value)
 	if not value then
 		setStatus("Arrêté.")
 	end
+end
+
+local function killCurrentClient()
+	print("[ShelfAuto] Script client arrêté définitivement par la touche L.")
+	enabled = false
+	busy = false
+	gui:Destroy()
+	script:Destroy()
 end
 
 local function getCharacterParts()
@@ -161,6 +184,18 @@ local function getActiveShelf()
 	return selected
 end
 
+local function waitForActiveShelf(timeout)
+	local deadline = os.clock() + timeout
+	repeat
+		local shelf = getActiveShelf()
+		if shelf then
+			return shelf
+		end
+		task.wait(0.25)
+	until not enabled or os.clock() >= deadline
+	return nil
+end
+
 local function runCycle()
 	if busy or not enabled then return end
 	busy = true
@@ -175,9 +210,8 @@ local function runCycle()
 	if not enabled then busy = false return end
 	setStatus("Interaction avec NormalBox (E)…")
 	usePrompt(normalBox:FindFirstChildWhichIsA("ProximityPrompt", true))
-	task.wait(0.5)
-
-	local shelf = getActiveShelf()
+	setStatus("Recherche d'une étagère active…")
+	local shelf = waitForActiveShelf(8)
 	if not shelf then
 		setStatus("Aucune étagère active/visible.")
 		busy = false
@@ -220,11 +254,14 @@ if player.Character then bindCharacter(player.Character) end
 player.CharacterAdded:Connect(bindCharacter)
 
 UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.M then
+	if processed then return end
+	if input.KeyCode == Enum.KeyCode.L then
 		panel.Visible = not panel.Visible
 		print("[ShelfAuto] Interface " .. (panel.Visible and "ouverte" or "fermée") .. ".")
 	end
 end)
+
+killButton.MouseButton1Click:Connect(killCurrentClient)
 
 toggle.MouseButton1Click:Connect(function()
 	setEnabled(not enabled)

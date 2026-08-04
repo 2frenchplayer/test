@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation  •  v1.8"
+title.Text = "Shelf automation  •  v1.88"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -349,4 +349,3 @@ toggle.MouseButton1Click:Connect(function()
 		task.spawn(runCycle)
 	end
 end)
---

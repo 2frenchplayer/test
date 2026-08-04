@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation  •  v2.0"
+title.Text = "Shelf  •  v2.0"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")

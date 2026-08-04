@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation  •  v2.1"
+title.Text = "Shelf automation  •  v2.3"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -177,11 +177,11 @@ local function walkAroundWalls(destination, character, humanoid, root)
 
 	local function isWalkable(point)
 		for _, part in ipairs(workspace:GetPartBoundsInBox(
-			CFrame.new(point),
+			CFrame.new(point + Vector3.new(0, 2.5, 0)),
 			Vector3.new(3.5, 5, 3.5),
 			overlapParams
 		)) do
-			if part.CanCollide then
+			if part.CanCollide and part.CanQuery then
 				return false
 			end
 		end
@@ -271,7 +271,7 @@ local function walkAroundWalls(destination, character, humanoid, root)
 	return false
 end
 
-local function moveTo(position, preferGrid)
+local function moveTo(position)
 	local character, humanoid, root = getCharacterParts()
 	if humanoid.Health <= 0 or not enabled then return false end
 
@@ -280,13 +280,11 @@ local function moveTo(position, preferGrid)
 	end
 	humanoid.WalkSpeed = AUTO_WALK_SPEED
 
-	if preferGrid then
-		setStatus("Calcul du trajet vers NormalBox…")
-		if walkAroundWalls(position, character, humanoid, root) then
-			return true
-		end
-		warn("[ShelfAuto] Itinéraire calculé indisponible, essai du pathfinding Roblox.")
+	setStatus("Calcul d'un trajet autour des murs…")
+	if walkAroundWalls(position, character, humanoid, root) then
+		return true
 	end
+	warn("[ShelfAuto] Itinéraire calculé indisponible, essai du pathfinding Roblox.")
 
 	for attempt = 1, PATH_RETRIES do
 		local path = PathfindingService:CreatePath({
@@ -419,7 +417,7 @@ local function runCycle()
 	busy = true
 
 	setStatus("Déplacement vers NormalBox…")
-	if not moveTo(getInteractionPosition(normalBox), true) then
+	if not moveTo(getInteractionPosition(normalBox)) then
 		if enabled then setStatus("NormalBox inaccessible.") end
 		busy = false
 		return
@@ -464,16 +462,27 @@ local function bindCharacter(character)
 	currentHumanoid = character:WaitForChild("Humanoid")
 	currentRoot = character:WaitForChild("HumanoidRootPart")
 	currentHumanoid.Died:Connect(function()
-		print("[ShelfAuto] Mort détectée : déplacement sous la map.")
-		setEnabled(false)
-		if currentRoot and currentRoot.Parent then
-			currentRoot.CFrame = CFrame.new(currentRoot.Position.X, -500, currentRoot.Position.Z)
+		print("[ShelfAuto] Mort détectée : reprise automatique après réapparition.")
+		busy = false
+		if enabled then
+			setStatus("Mort détectée. Reprise après réapparition…")
 		end
 	end)
 end
 
 if player.Character then bindCharacter(player.Character) end
-player.CharacterAdded:Connect(bindCharacter)
+player.CharacterAdded:Connect(function(character)
+	bindCharacter(character)
+	if enabled then
+		task.spawn(function()
+			setStatus("Personnage réapparu. Retour vers NormalBox…")
+			task.wait(1)
+			if enabled and not busy then
+				task.spawn(runCycle)
+			end
+		end)
+	end
+end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
@@ -491,4 +500,3 @@ toggle.MouseButton1Click:Connect(function()
 		task.spawn(runCycle)
 	end
 end)
---

@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation  •  v2.3"
+title.Text = "Shelf automation  •  v2.4"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -280,18 +280,20 @@ local function moveTo(position)
 	end
 	humanoid.WalkSpeed = AUTO_WALK_SPEED
 
-	setStatus("Calcul d'un trajet autour des murs…")
-	if walkAroundWalls(position, character, humanoid, root) then
-		return true
-	end
-	warn("[ShelfAuto] Itinéraire calculé indisponible, essai du pathfinding Roblox.")
+	local recalculation = 0
+	while enabled and humanoid.Health > 0 do
+		recalculation += 1
+		setStatus("Calcul du trajet anti-murs #" .. recalculation .. "…")
 
-	for attempt = 1, PATH_RETRIES do
+		if walkAroundWalls(position, character, humanoid, root) then
+			return true
+		end
+
 		local path = PathfindingService:CreatePath({
-			AgentRadius = 2,
+			AgentRadius = 1.5,
 			AgentHeight = 5,
 			AgentCanJump = true,
-			WaypointSpacing = 4,
+			WaypointSpacing = 2,
 		})
 
 		local computed = pcall(function()
@@ -326,30 +328,18 @@ local function moveTo(position)
 			end
 			blockedConnection:Disconnect()
 
-			if completed then
+			if completed and (root.Position - position).Magnitude <= 7 then
 				return true
 			end
-			warn("[ShelfAuto] Chemin bloqué par un mur, recalcul " .. attempt .. "/" .. PATH_RETRIES .. ".")
+			warn("[ShelfAuto] Trajet bloqué : nouveau calcul complet.")
 		else
-			warn("[ShelfAuto] Aucun chemin valide, recalcul " .. attempt .. "/" .. PATH_RETRIES .. ".")
+			warn("[ShelfAuto] Aucun trajet valide : nouveau calcul complet.")
 		end
-		task.wait(0.15)
+
+		setStatus("Obstacle détecté, recalcul en cours…")
+		task.wait(0.35)
 	end
 
-	setStatus("Recherche d'un détour autour des murs…")
-	if walkAroundWalls(position, character, humanoid, root) then
-		return true
-	end
-
-	warn("[ShelfAuto] Aucun détour trouvé : essai de marche directe.")
-	setStatus("Aucun détour trouvé, marche directe…")
-	humanoid:MoveTo(position)
-	local reachedDirectly = humanoid.MoveToFinished:Wait()
-	if reachedDirectly or (root.Position - position).Magnitude <= 7 then
-		return true
-	end
-
-	warn("[ShelfAuto] Destination inaccessible après plusieurs essais.")
 	return false
 end
 

@@ -13,7 +13,7 @@ local job = workspace:WaitForChild("Map")
 local normalBox = job:WaitForChild("NormalBox")
 local shelves = job:WaitForChild("Shelves")
 
-print("[ShelfAuto] Script client chargé. Appuie sur L pour ouvrir l'interface.")
+print("ShelfAuto Script client chargé. Appuie sur L pour ouvrir l'interface.")
 
 local enabled = false
 local busy = false

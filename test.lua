@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation  •  v1.7"
+title.Text = "Shelf automation  •  v1.8"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -235,14 +235,16 @@ local function usePrompt(prompt)
 end
 
 local function getActiveShelf()
-	-- Le jeu crée une flèche locale dont Attachment0 est parenté à l'étagère cible.
-	-- Les marqueurs Shelf restent volontairement invisibles.
-	local arrow = workspace:FindFirstChild("ArrowDirection")
-	if arrow and arrow:IsA("Beam") and arrow.Attachment0 then
-		local target = arrow.Attachment0.Parent
-		if target and target:IsA("BasePart") and target:IsDescendantOf(shelves) then
-			print("[ShelfAuto] Étagère cible détectée par la flèche : " .. target:GetFullName())
-			return target
+	-- Le jeu crée une flèche locale (Beam) à la racine de Workspace.
+	-- Son premier Attachment est directement parenté à l'étagère cible.
+	-- On ne dépend pas du nom de la flèche, qui peut changer.
+	for _, indicator in ipairs(workspace:GetChildren()) do
+		if indicator:IsA("Beam") and indicator.Attachment0 then
+			local target = indicator.Attachment0.Parent
+			if target and target:IsA("BasePart") and target:IsDescendantOf(shelves) then
+				print("[ShelfAuto] Étagère cible détectée : " .. target:GetFullName())
+				return target
+			end
 		end
 	end
 
@@ -291,7 +293,7 @@ local function runCycle()
 	setStatus("Recherche d'une étagère active…")
 	local shelf = waitForActiveShelf(8)
 	if not shelf then
-		setStatus("Aucune étagère cible détectée (flèche absente).")
+		setStatus("Aucune étagère cible détectée (indicateur absent).")
 		busy = false
 		return
 	end
@@ -347,4 +349,3 @@ toggle.MouseButton1Click:Connect(function()
 		task.spawn(runCycle)
 	end
 end)
---

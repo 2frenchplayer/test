@@ -186,6 +186,14 @@ local function moveTo(position)
 		task.wait(0.15)
 	end
 
+	warn("[ShelfAuto] Aucun chemin généré : essai de marche directe.")
+	setStatus("Navigation indisponible, marche directe…")
+	humanoid:MoveTo(position)
+	local reachedDirectly = humanoid.MoveToFinished:Wait()
+	if reachedDirectly then
+		return true
+	end
+
 	warn("[ShelfAuto] Destination inaccessible après plusieurs essais.")
 	return false
 end

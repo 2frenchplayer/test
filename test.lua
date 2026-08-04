@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation  •  v1.88"
+title.Text = "Shelf automation  •  v2.0"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -146,8 +146,133 @@ local function getInteractionPosition(target)
 		+ horizontal.Unit * distanceFromTarget
 end
 
+local function walkAroundWalls(destination, character, humanoid, root)
+	local cellSize = 5
+	local start = root.Position
+	local delta = destination - start
+	local rangeX = math.clamp(math.ceil(math.abs(delta.X) / cellSize) + 8, 8, 24)
+	local rangeZ = math.clamp(math.ceil(math.abs(delta.Z) / cellSize) + 8, 8, 24)
+
+	local function rounded(value)
+		return value >= 0 and math.floor(value + 0.5) or math.ceil(value - 0.5)
+	end
+
+	local targetX = rounded(delta.X / cellSize)
+	local targetZ = rounded(delta.Z / cellSize)
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+	overlapParams.FilterDescendantsInstances = { character }
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	rayParams.FilterDescendantsInstances = { character }
+
+	local function worldPosition(gridX, gridZ)
+		return Vector3.new(
+			start.X + gridX * cellSize,
+			start.Y,
+			start.Z + gridZ * cellSize
+		)
+	end
+
+	local function isWalkable(point)
+		for _, part in ipairs(workspace:GetPartBoundsInBox(
+			CFrame.new(point),
+			Vector3.new(3.5, 5, 3.5),
+			overlapParams
+		)) do
+			if part.CanCollide then
+				return false
+			end
+		end
+		return true
+	end
+
+	local function segmentIsClear(from, to)
+		local origin = from + Vector3.new(0, 2, 0)
+		local direction = Vector3.new(to.X - from.X, 0, to.Z - from.Z)
+		return workspace:Raycast(origin, direction, rayParams) == nil
+	end
+
+	local function key(gridX, gridZ)
+		return tostring(gridX) .. "," .. tostring(gridZ)
+	end
+
+	local nodes = {}
+	local startKey = key(0, 0)
+	nodes[startKey] = { x = 0, z = 0, g = 0 }
+	local open = { nodes[startKey] }
+	local directions = {
+		{ 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
+	}
+
+	local visited = 0
+	while #open > 0 and visited < 500 do
+		visited += 1
+		local bestIndex = 1
+		local bestScore = math.huge
+		for index, node in ipairs(open) do
+			local score = node.g + math.abs(targetX - node.x) + math.abs(targetZ - node.z)
+			if score < bestScore then
+				bestScore = score
+				bestIndex = index
+			end
+		end
+
+		local current = table.remove(open, bestIndex)
+		if current.x == targetX and current.z == targetZ then
+			local route = {}
+			local node = current
+			while node do
+				table.insert(route, 1, node)
+				node = node.parent
+			end
+
+			for index = 2, #route do
+				if not enabled or humanoid.Health <= 0 then return false end
+				local waypoint = worldPosition(route[index].x, route[index].z)
+				humanoid:MoveTo(waypoint)
+				if not humanoid.MoveToFinished:Wait() then
+					return false
+				end
+			end
+
+			humanoid:MoveTo(destination)
+			local reached = humanoid.MoveToFinished:Wait()
+			return reached or (root.Position - destination).Magnitude <= 7
+		end
+
+		for _, direction in ipairs(directions) do
+			local nextX = current.x + direction[1]
+			local nextZ = current.z + direction[2]
+			if math.abs(nextX) <= rangeX and math.abs(nextZ) <= rangeZ then
+				local nextKey = key(nextX, nextZ)
+				local nextPoint = worldPosition(nextX, nextZ)
+				local currentPoint = worldPosition(current.x, current.z)
+				local nextCost = current.g + 1
+				local existing = nodes[nextKey]
+
+				if (not existing or nextCost < existing.g)
+					and isWalkable(nextPoint)
+					and segmentIsClear(currentPoint, nextPoint) then
+					local nextNode = {
+						x = nextX,
+						z = nextZ,
+						g = nextCost,
+						parent = current,
+					}
+					nodes[nextKey] = nextNode
+					table.insert(open, nextNode)
+				end
+			end
+		end
+	end
+
+	return false
+end
+
 local function moveTo(position)
-	local _, humanoid, root = getCharacterParts()
+	local character, humanoid, root = getCharacterParts()
 	if humanoid.Health <= 0 or not enabled then return false end
 
 	if not originalWalkSpeed then
@@ -205,8 +330,13 @@ local function moveTo(position)
 		task.wait(0.15)
 	end
 
-	warn("[ShelfAuto] Aucun chemin généré : essai de marche directe.")
-	setStatus("Navigation indisponible, marche directe…")
+	setStatus("Recherche d'un détour autour des murs…")
+	if walkAroundWalls(position, character, humanoid, root) then
+		return true
+	end
+
+	warn("[ShelfAuto] Aucun détour trouvé : essai de marche directe.")
+	setStatus("Aucun détour trouvé, marche directe…")
 	humanoid:MoveTo(position)
 	local reachedDirectly = humanoid.MoveToFinished:Wait()
 	if reachedDirectly or (root.Position - position).Magnitude <= 7 then
@@ -316,6 +446,10 @@ local function runCycle()
 		if enabled then setStatus("Cycle terminé.") end
 	end
 	busy = false
+	if enabled then
+		setStatus("Cycle terminé. Nouveau cycle…")
+		task.defer(runCycle)
+	end
 end
 
 local function bindCharacter(character)

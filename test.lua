@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation  •  v1.6"
+title.Text = "Shelf automation  •  v1.7"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -127,6 +127,25 @@ local function getCharacterParts()
 	return character, humanoid, root
 end
 
+local function getInteractionPosition(target)
+	local _, _, root = getCharacterParts()
+	local prompt = target:FindFirstChildWhichIsA("ProximityPrompt", true)
+	local activationDistance = prompt and prompt.MaxActivationDistance or 8
+	local distanceFromTarget = math.max(3, math.min(activationDistance - 1, 7))
+
+	local horizontal = Vector3.new(
+		root.Position.X - target.Position.X,
+		0,
+		root.Position.Z - target.Position.Z
+	)
+	if horizontal.Magnitude < 0.1 then
+		horizontal = Vector3.new(1, 0, 0)
+	end
+
+	return Vector3.new(target.Position.X, root.Position.Y, target.Position.Z)
+		+ horizontal.Unit * distanceFromTarget
+end
+
 local function moveTo(position)
 	local _, humanoid, root = getCharacterParts()
 	if humanoid.Health <= 0 or not enabled then return false end
@@ -190,7 +209,7 @@ local function moveTo(position)
 	setStatus("Navigation indisponible, marche directe…")
 	humanoid:MoveTo(position)
 	local reachedDirectly = humanoid.MoveToFinished:Wait()
-	if reachedDirectly then
+	if reachedDirectly or (root.Position - position).Magnitude <= 7 then
 		return true
 	end
 
@@ -260,7 +279,7 @@ local function runCycle()
 	busy = true
 
 	setStatus("Déplacement vers NormalBox…")
-	if not moveTo(normalBox.Position) then
+	if not moveTo(getInteractionPosition(normalBox)) then
 		if enabled then setStatus("NormalBox inaccessible.") end
 		busy = false
 		return

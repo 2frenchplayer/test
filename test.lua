@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf  •  v2.0"
+title.Text = "Shelf automation  •  v2.1"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -271,7 +271,7 @@ local function walkAroundWalls(destination, character, humanoid, root)
 	return false
 end
 
-local function moveTo(position)
+local function moveTo(position, preferGrid)
 	local character, humanoid, root = getCharacterParts()
 	if humanoid.Health <= 0 or not enabled then return false end
 
@@ -279,6 +279,14 @@ local function moveTo(position)
 		originalWalkSpeed = humanoid.WalkSpeed
 	end
 	humanoid.WalkSpeed = AUTO_WALK_SPEED
+
+	if preferGrid then
+		setStatus("Calcul du trajet vers NormalBox…")
+		if walkAroundWalls(position, character, humanoid, root) then
+			return true
+		end
+		warn("[ShelfAuto] Itinéraire calculé indisponible, essai du pathfinding Roblox.")
+	end
 
 	for attempt = 1, PATH_RETRIES do
 		local path = PathfindingService:CreatePath({
@@ -411,7 +419,7 @@ local function runCycle()
 	busy = true
 
 	setStatus("Déplacement vers NormalBox…")
-	if not moveTo(getInteractionPosition(normalBox)) then
+	if not moveTo(getInteractionPosition(normalBox), true) then
 		if enabled then setStatus("NormalBox inaccessible.") end
 		busy = false
 		return

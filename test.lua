@@ -48,7 +48,7 @@ title.Font = Enum.Font.GothamBold
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Text = "Shelf automation"
+title.Text = "Shelf automation  •  v1.6"
 title.Parent = panel
 
 local status = Instance.new("TextLabel")
@@ -208,6 +208,17 @@ local function usePrompt(prompt)
 end
 
 local function getActiveShelf()
+	-- Le jeu crée une flèche locale dont Attachment0 est parenté à l'étagère cible.
+	-- Les marqueurs Shelf restent volontairement invisibles.
+	local arrow = workspace:FindFirstChild("ArrowDirection")
+	if arrow and arrow:IsA("Beam") and arrow.Attachment0 then
+		local target = arrow.Attachment0.Parent
+		if target and target:IsA("BasePart") and target:IsDescendantOf(shelves) then
+			print("[ShelfAuto] Étagère cible détectée par la flèche : " .. target:GetFullName())
+			return target
+		end
+	end
+
 	local _, _, root = getCharacterParts()
 	local selected, bestDistance
 	for _, shelf in ipairs(shelves:GetChildren()) do
@@ -253,7 +264,7 @@ local function runCycle()
 	setStatus("Recherche d'une étagère active…")
 	local shelf = waitForActiveShelf(8)
 	if not shelf then
-		setStatus("Aucune étagère active/visible.")
+		setStatus("Aucune étagère cible détectée (flèche absente).")
 		busy = false
 		return
 	end
@@ -266,8 +277,8 @@ local function runCycle()
 	end
 
 	if enabled then
-		setStatus("Interaction avec l'étagère (E)…")
-		usePrompt(shelf:FindFirstChildWhichIsA("ProximityPrompt", true))
+		-- Cette étagère se déclenche au contact du HumanoidRootPart, pas avec E.
+		setStatus("Étagère atteinte : contact déclenché.")
 	end
 
 	if enabled then
